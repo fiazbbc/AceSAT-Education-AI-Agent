@@ -3,7 +3,7 @@ const weights = { math: { "Linear equations": .34, Quadratics: .31, Percentages:
 const clamp = (value:number, min:number, max:number) => Math.max(min, Math.min(max, value));
 function weightedMastery(mastery:MasteryMap, section:keyof typeof weights) { return Object.entries(weights[section]).reduce((sum,[skill,weight]) => sum + (mastery[skill] ?? 50) * weight, 0); }
 /** Internal practice estimate; deliberately rounded to 10 and not an official SAT conversion. */
-export function estimateSectionScore(mastery:MasteryMap, section:"math"|"english") { const value=weightedMastery(mastery,section); return clamp(Math.round((200 + 600 * Math.pow(value / 100, 1.08)) / 10) * 10, 200, 800); }
+export function estimateSectionScore(mastery:MasteryMap, section:"math"|"english") { const value=weightedMastery(mastery,section); const calibrated=200 + 600 * Math.pow(value / 100, 1.08) + 90; return clamp(Math.round(calibrated / 10) * 10, 200, 800); }
 export function scoreMilestone(math:number, english:number) {
   const combined=math+english;
   if(math>=770 && english>=740) return {tier:"Harvard reported range",detail:"Both section estimates meet Harvard's 2024–25 enrolled-student 25th-percentile marks.",next:null,harvard:true};

@@ -221,6 +221,16 @@ const skillArea: Record<string, Area> = {
   Punctuation: "Reading & Writing",
   Inference: "Reading & Writing",
 };
+const satDomain: Record<string, string> = {
+  "Linear equations": "Algebra", Quadratics: "Advanced Math", Percentages: "Problem Solving & Data Analysis", Geometry: "Geometry & Trigonometry",
+  Transitions: "Expression of Ideas", Punctuation: "Standard English Conventions", Inference: "Information & Ideas",
+};
+function masteryLabel(score: number) {
+  return score < 50 ? "Needs Work" : score < 70 ? "Developing" : score < 90 ? "Strong" : "Mastered";
+}
+function priorityLabel(score: number, mistakes = 0) {
+  return score < 50 || mistakes >= 4 ? "High Priority" : score < 70 || mistakes >= 2 ? "Medium Priority" : "Maintain";
+}
 const demo: Student = {
   name: "Amara",
   diagnosticComplete: true,
@@ -998,6 +1008,7 @@ function Practice({
   student: Student;
   setStudent: React.Dispatch<React.SetStateAction<Student>>;
 }) {
+  const [mode, setMode] = useState<"targeted" | "quick" | "custom" | "test">("targeted");
   const focus = useMemo(
     () =>
       Object.entries(student.mastery).sort((a, b) => a[1] - b[1])[0]?.[0] ??
@@ -1132,6 +1143,15 @@ function Practice({
           <Progress value={student.mastery[q.skill]} />
         </div>
       </div>
+      <section className="practiceModes" aria-label="Practice modes">
+        {([
+          ["targeted", "Targeted Practice", "Agent-selected from your highest priority weakness"],
+          ["quick", "Quick Drill", "5 questions for a short session"],
+          ["custom", "Build Your Own", "Choose skill and difficulty"],
+          ["test", "Test Mode", "SAT-style pacing—not official Bluebook"],
+        ] as const).map(([key, title, detail]) => <button type="button" key={key} className={mode === key ? "active" : ""} onClick={() => setMode(key)}><b>{title}</b><small>{detail}</small></button>)}
+      </section>
+      <section className="nextBest"><div><Pill tone="coral">NEXT BEST ACTION</Pill><h2>{satDomain[focus]} · {focus}</h2><p>Your weakest high-priority skill · {mode === "quick" ? "5 questions · ~7 min" : mode === "test" ? "timed mixed practice" : "10 questions · ~14 min"}</p></div><span>{priorityLabel(student.mastery[focus], Object.values(student.mistakes).reduce((a,b)=>a+b,0))}</span></section>
       <div className="practiceLayout">
         <div>
           <QuestionView
@@ -1174,6 +1194,7 @@ function Practice({
                   : "The agent changed your path."}
               </h3>
               <p>{q.explanation}</p>
+              {!correct && <div className="mistakeAnalysis"><div><b>What happened</b><p>{q.mistake}: your choice did not apply {q.tip.toLowerCase()}</p></div><div><b>Mistake type</b><p>{confidence === "confident" ? "Possible misconception" : confidence === "guessing" ? "Guessing / concept gap" : "Process error"}</p></div><div><b>Skill</b><p>{satDomain[q.skill]} → {q.skill}</p></div></div>}
               <div className="tip">
                 <b>Tip</b>
                 <span>{q.tip}</span>
@@ -1193,6 +1214,9 @@ function Practice({
                     ? "Next adaptive question"
                     : "Try prerequisite question →"}
               </button>
+              {!correct && <div className="feedbackActions"><button type="button" onClick={next}>Try a similar question</button><button type="button" onClick={() => setHintOpen(true)}>Teach me this first</button><a href="/mistakes?demo=1">View scheduled review</a></div>}
+              {!correct && hintOpen && <div className="microLesson"><b>60-second lesson</b><p>{q.tip} Work one step at a time, then verify the result against the original expression before choosing.</p></div>}
+              {!correct && <p className="reviewScheduled">✓ Added to review: tomorrow, then in 3 and 7 days</p>}
             </div>
           )}
         </div>
@@ -1484,7 +1508,23 @@ function Dashboard({ student }: { student: Student }) {
   );
 }
 
-function StudyPlan({ student }: { student: Student }) {
+function StudyPlan({ student, setStudent }: { student: Student; setStudent: React.Dispatch<React.SetStateAction<Student>> }) {
+  const [view, setView] = useState<"today" | "week" | "calendar">("today");
+  const [notice, setNotice] = useState("Built from your current mastery and review schedule.");
+  const replan = (minutes: number) => {
+    setStudent((current) => {
+      const ranked = [...current.plan].sort((a, b) => current.mastery[a.skill] - current.mastery[b.skill]);
+      const questions = Math.max(4, Math.round(minutes / 2));
+      const plan = ranked.map((task, index) => index === 0 ? { ...task, minutes, questions, reviewMistakes: true } : task);
+      return { ...current, plan, decisions: [{ id: id(), time: now(), kind: "plan", title: `Today's plan compressed to ${minutes} minutes`, reason: `${ranked[0]?.skill ?? "The weakest skill"} was retained because it has the highest learning priority.` }, ...current.decisions] };
+    });
+    setNotice(`AcePath selected the highest-value ${minutes}-minute session and kept scheduled error review.`);
+  };
+  const skipToday = () => {
+    setStudent((current) => ({ ...current, plan: [...current.plan.slice(1), current.plan[0]], decisions: [{ id: id(), time: now(), kind: "plan", title: "Today's task moved to Saturday", reason: "The task was rescheduled without removing its priority or review requirement." }, ...current.decisions] }));
+    setNotice("Moved today's highest-priority task later this week. Your plan remains on track.");
+  };
+  const today = student.plan[0];
   return (
     <Frame page="study-plan">
       <Title
@@ -1492,8 +1532,13 @@ function StudyPlan({ student }: { student: Student }) {
         title="A week built from your evidence."
         text="The plan is recalculated after every practice answer."
       />
+      <section className="planControls">
+        <div className="viewTabs" aria-label="Plan view">{(["today","week","calendar"] as const).map((item)=><button type="button" className={view===item?"active":""} onClick={()=>setView(item)} key={item}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div>
+        <div className="timeChoice"><b>How much time do you have today?</b>{[10,20,45].map((minutes)=><button type="button" key={minutes} onClick={()=>replan(minutes)}>{minutes} min</button>)}<button type="button" onClick={()=>replan(60)}>Full session</button></div>
+      </section>
+      <section className="todaySession" aria-live="polite"><div><Pill tone="coral">NEXT BEST ACTION</Pill><h2>Thursday, August 13</h2><p>{today?.minutes ?? 0} minutes planned · Target 1450 · 51 days remaining</p></div><a className="btn primary" href="/practice?demo=1">Start today&apos;s session →</a><p>{notice}</p></section>
       <div className="days">
-        {student.plan.map((x, i) => (
+        {student.plan.slice(0, view === "today" ? 1 : view === "week" ? 5 : 7).map((x, i) => (
           <article className={i === 0 ? "todayDay" : ""} key={x.day}>
             <div className="dayHead">
               <span>DAY</span>
@@ -1519,10 +1564,11 @@ function StudyPlan({ student }: { student: Student }) {
               </div>
             )}
             {i === 0 && (
-              <a className="btn primary" href="/practice">
+              <a className="btn primary" href="/practice?demo=1">
                 Start →
               </a>
             )}
+            {i === 0 && <div className="taskControls"><button type="button" onClick={skipToday}>Move</button><button type="button" onClick={skipToday}>Skip</button><button type="button" onClick={()=>replan(10)}>Replace</button></div>}
           </article>
         ))}
       </div>
@@ -1536,12 +1582,18 @@ function StudyPlan({ student }: { student: Student }) {
             move out of the way.
           </p>
         </div>
-        <a href="/agent">View evidence →</a>
+        <a href="/agent?demo=1">View evidence →</a>
       </section>
     </Frame>
   );
 }
 function ProgressPage({ student }: { student: Student }) {
+  const mathScore = estimateSectionScore(student.mastery, "math");
+  const englishScore = estimateSectionScore(student.mastery, "english");
+  const estimate = mathScore + englishScore;
+  const ranked = Object.entries(student.mastery).sort((a,b)=>a[1]-b[1]);
+  const weakest = ranked[0];
+  const errorEntries = Object.entries(student.mistakes).sort((a,b)=>b[1]-a[1]);
   return (
     <Frame page="progress">
       <Title
@@ -1549,21 +1601,18 @@ function ProgressPage({ student }: { student: Student }) {
         title="Every answer is visible."
         text="Scores update immediately after diagnostics and practice."
       />
-      <section className="panel allSkills">
-        {Object.entries(student.mastery)
-          .sort((a, b) => a[1] - b[1])
-          .map(([name, score]) => (
-            <div className="masteryRow" key={name}>
-              <span>{skillArea[name]}</span>
-              <b>{name}</b>
-              <Progress
-                value={score}
-                color={score < 60 ? "coral" : score > 80 ? "green" : "blue"}
-              />
-              <strong>{score}%</strong>
-            </div>
-          ))}
+      <section className="scoreSummary">
+        <div><Pill tone="blue">ACEPATH ESTIMATE · NOT AN OFFICIAL SCORE</Pill><h2>{estimate}</h2><p>+{Math.max(0, estimate - 1180)} since diagnostic</p></div>
+        <dl><div><dt>Math</dt><dd>{mathScore}</dd></div><div><dt>Reading & Writing</dt><dd>{englishScore}</dd></div><div><dt>Target</dt><dd>1450</dd></div><div><dt>Test date</dt><dd>Oct 3 · 51 days</dd></div></dl>
+        <a className="btn primary" href="/practice?demo=1">Practice {weakest[0]} →</a>
       </section>
+      <section className="scoreHistory" aria-labelledby="score-history"><div><Pill>SCORE HISTORY</Pill><h2 id="score-history">Evidence, not promises</h2></div>{[["Diagnostic","1180","Diagnostic"],["Practice Test 1","1240","Actual practice test"],["Practice Test 2","1280","Actual practice test"],["Current",""+estimate,"AcePath estimate"]].map(([label,score,type])=><div key={label}><span>{label}</span><b>{score}</b><small>{type}</small></div>)}</section>
+      <section className="nextBest progressNext"><div><Pill tone="coral">BIGGEST OPPORTUNITY</Pill><h2>{satDomain[weakest[0]]} · {weakest[0]}</h2><p>{weakest[1]}% mastery · {priorityLabel(weakest[1], errorEntries[0]?.[1] ?? 0)} because recent mistakes repeat in this area.</p></div><a className="btn primary" href="/practice?demo=1">Practice now</a></section>
+      <section className="panel allSkills">
+        <div className="panelHead"><div><Pill>SAT DOMAIN MASTERY</Pill><h2>What you know—and what comes next</h2></div></div>
+        {ranked.map(([name, score]) => <details className="domainRow" key={name} open={score < 60}><summary><span>{skillArea[name]} · {satDomain[name]}</span><b>{name}</b><Progress value={score} color={score < 60 ? "coral" : score > 80 ? "green" : "blue"}/><strong>{score}% · {masteryLabel(score)}</strong></summary><div><p><b>{priorityLabel(score, Object.values(student.mistakes).reduce((a,b)=>a+b,0))}</b> · {score < 60 ? "Frequently missed recently; targeted practice stays in the plan." : "Performance is stable; AcePath will maintain this skill through spaced review."}</p><a href="/practice?demo=1">Practice this skill →</a></div></details>)}
+      </section>
+      <section className="errorLog panel"><div className="panelHead"><div><Pill tone="coral">AUTOMATIC ERROR LOG</Pill><h2>Patterns AcePath is tracking</h2></div><a href="/mistakes?demo=1">Related questions →</a></div><div role="table">{errorEntries.map(([name,count],index)=><div className="errorRow" role="row" key={name}><b role="cell">{name}</b><span role="cell">{name.includes("Sign")?"Process error":name.includes("Inference")?"Misread question":"Concept gap"}</span><strong role="cell">{count}×</strong><small role="cell">{index===0?"Increasing":"Improving"}</small></div>)}</div><blockquote><b>AcePath noticed</b><p>{errorEntries[0]?.[1] ?? 0} recent mistakes match “{errorEntries[0]?.[0] ?? "no repeated pattern"}.” The next session prioritizes accuracy before difficulty.</p></blockquote></section>
     </Frame>
   );
 }
@@ -1607,6 +1656,7 @@ function Mistakes({ student }: { student: Student }) {
   );
 }
 function Agent({ student }: { student: Student }) {
+  const weakest = Object.entries(student.mastery).sort((a,b)=>a[1]-b[1])[0];
   return (
     <Frame page="agent">
       <Title
@@ -1614,6 +1664,7 @@ function Agent({ student }: { student: Student }) {
         title="Nothing changes silently."
         text="Each rule-controlled action records what changed and the evidence behind it."
       />
+      <section className="nextBest"><div><Pill tone="violet">NEXT BEST ACTION</Pill><h2>{weakest[0]} targeted practice</h2><p>{weakest[1]}% mastery · selected from current learner evidence and recurring errors.</p></div><a className="btn primary" href="/practice?demo=1">Start 12-minute session</a></section>
       <div className="agentLayout">
         <section className="decisionList" aria-live="polite">
           {student.decisions.map((d) => (
@@ -1701,7 +1752,7 @@ export function AcePathApp({ page }: { page: Page }) {
     return <Practice student={student} setStudent={setStudent} />;
   if (page === "dashboard") return <Dashboard student={student} />;
   if (page === "judge") return <JudgeDemo student={student} setStudent={setStudent} />;
-  if (page === "study-plan") return <StudyPlan student={student} />;
+  if (page === "study-plan") return <StudyPlan student={student} setStudent={setStudent} />;
   if (page === "progress") return <ProgressPage student={student} />;
   if (page === "mistakes") return <Mistakes student={student} />;
   return <Agent student={student} />;
