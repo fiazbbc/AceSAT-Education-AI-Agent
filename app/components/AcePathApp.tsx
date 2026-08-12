@@ -506,6 +506,22 @@ function Preferences() {
     </div>
   );
 }
+function DesmosLauncher() {
+  return (
+    <a
+      className="desmosLauncher"
+      href="https://www.desmos.com/testing/collegeboard/graphing"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Open the College Board Desmos graphing calculator in a new tab"
+      title="Open Desmos graphing calculator"
+    >
+      <span className="desmosLogo" aria-hidden="true"><i /><i /><i /></span>
+      <span><b>desmos</b><small>Graphing Calculator</small></span>
+      <i className="externalMark" aria-hidden="true">↗</i>
+    </a>
+  );
+}
 function Frame({ page, children }: { page: Page; children: React.ReactNode }) {
   return (
     <div className="app">
@@ -518,6 +534,7 @@ function Frame({ page, children }: { page: Page; children: React.ReactNode }) {
         {children}
       </main>
       <Preferences />
+      <DesmosLauncher />
       <nav className="mobileNav" aria-label="Mobile navigation">
         <a href="/dashboard">
           ⌂<small>Home</small>
@@ -592,6 +609,7 @@ function Landing() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   return (
     <div className="landing">
+      <DesmosLauncher />
       <Header page="home" />
       <main>
         <section className="hero">
