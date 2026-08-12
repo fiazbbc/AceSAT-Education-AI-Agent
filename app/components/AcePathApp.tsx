@@ -10,6 +10,7 @@ import {
   updateMastery,
 } from "../../lib/agent-core.mjs";
 import { expandedQuestionBank } from "../../lib/question-bank";
+import { estimateSectionScore, scoreMilestone } from "../../lib/readiness";
 
 type Page =
   | "home"
@@ -1296,6 +1297,10 @@ function Dashboard({ student }: { student: Student }) {
   const latest = student.decisions[0];
   const xp = student.answers.length * 10 + Object.values(student.mastery).filter((score) => score >= 80).length * 50;
   const level = Math.floor(xp / 500) + 1;
+  const mathEstimate = estimateSectionScore(student.mastery, "math");
+  const englishEstimate = estimateSectionScore(student.mastery, "english");
+  const combinedEstimate = mathEstimate + englishEstimate;
+  const milestone = scoreMilestone(mathEstimate, englishEstimate);
   return (
     <Frame page="dashboard">
       <section className="levelBar" aria-label={`Level ${level}, ${xp % 500} of 500 XP`}>
@@ -1317,22 +1322,29 @@ function Dashboard({ student }: { student: Student }) {
       </div>
       <section className="readiness">
         <div>
-          <Pill tone="navy">ACEPATH READINESS INDEX</Pill>
+          <Pill tone="navy">ACEPATH SAT PRACTICE ESTIMATE</Pill>
           <h2>
-            {Math.round((math + rw) / 2)} <small>/ 100</small>
+            {combinedEstimate} <small>/ 1600</small>
           </h2>
           <p>Internal preparation signal · not an official SAT score prediction</p>
         </div>
         <div className="rings">
           <div className="ring math">
-            <b>{math}%</b>
-            <small>Math</small>
+            <b>{mathEstimate}</b>
+            <small>Math / 800</small>
           </div>
           <div className="ring rw">
-            <b>{rw}%</b>
-            <small>Reading & Writing</small>
+            <b>{englishEstimate}</b>
+            <small>English / 800</small>
           </div>
         </div>
+      </section>
+      <section className={`universityMilestone ${milestone.harvard ? "harvard" : ""}`} aria-label="University score milestone">
+        <div className="uniMark" aria-hidden="true">{milestone.harvard ? "H" : "↗"}</div>
+        <div><span>CURRENT SCORE MILESTONE</span><h2>{milestone.tier}</h2><p>{milestone.detail}</p></div>
+        <div className="milestoneNext">{milestone.next ? <><b>{milestone.next}</b><small>estimated points to next milestone</small></> : <><b>740+ / 770+</b><small>English / Math reported lower bounds</small></>}</div>
+        {milestone.harvard && <a href="https://oira.harvard.edu/files/2025/06/HarvardUniversity_CDS_2024-2025.pdf" target="_blank" rel="noopener noreferrer">Official Harvard CDS source ↗</a>}
+        <small className="admissionNote">Score-range context only. Universities review applications holistically; a score in range does not imply admission or endorsement.</small>
       </section>
       <div className="dashGrid">
         <section className="panel today">
