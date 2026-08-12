@@ -1277,8 +1277,10 @@ function Practice({
         </div>
         <aside className="practiceAside">
           <div className="agentBubble">
-            <span>✦</span>
-            <Pill tone="violet">AGENT ACTION</Pill>
+            <div className="agentBubbleHead">
+              <span aria-hidden="true">✦</span>
+              <Pill tone="violet">AGENT ACTION</Pill>
+            </div>
             <p>
               {checked && !correct
                 ? `Saved “${q.mistake},” lowered ${q.skill} mastery, rebuilt the plan, and selected a foundation question.`
