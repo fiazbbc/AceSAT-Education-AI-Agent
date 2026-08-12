@@ -18,7 +18,8 @@ type Page =
   | "study-plan"
   | "progress"
   | "mistakes"
-  | "agent";
+  | "agent"
+  | "judge";
 type Area = "Math" | "Reading & Writing";
 type Question = {
   id: string;
@@ -605,6 +606,9 @@ function Landing() {
               better question, and a realistic plan.
             </p>
             <div className="actions">
+              <a className="btn primary judgeCta" href="/judge?demo=1">
+                Start Judge Demo <span>→</span>
+              </a>
               <a className="btn primary" href="/diagnostic?new=1">
                 Start a diagnostic <span>→</span>
               </a>
@@ -990,6 +994,13 @@ function Practice({
   const [recoveryTarget, setRecoveryTarget] = useState<Question | null>(null);
   const [confidence, setConfidence] = useState<"guessing" | "unsure" | "confident">("unsure");
   const [hintOpen, setHintOpen] = useState(false);
+  const [transition, setTransition] = useState<{
+    before: number;
+    after: number;
+    from: string;
+    to: string;
+    mistake?: string;
+  } | null>(null);
   const correct = chosen === q.answer;
   function check() {
     if (chosen === null) return;
@@ -998,6 +1009,13 @@ function Practice({
       correct,
       difficulty: q.difficulty,
       repeatedMistakes: repeated,
+    });
+    setTransition({
+      before: student.mastery[q.skill],
+      after: score,
+      from: ["Foundation", "Medium", "Advanced"][q.difficulty - 1],
+      to: correct ? ["Foundation", "Medium", "Advanced"][Math.max(0, nextDifficulty({ mastery: score, consecutiveCorrect: 1 }) - 1)] : "Foundation",
+      mistake: correct ? undefined : q.mistake,
     });
     const decisions: Decision[] = [];
     if (!correct) {
@@ -1069,6 +1087,7 @@ function Practice({
     setChosen(null);
     setChecked(false);
     setHintOpen(false);
+    setTransition(null);
   }
   return (
     <Frame page="practice">
@@ -1128,6 +1147,14 @@ function Practice({
                 <b>Tip</b>
                 <span>{q.tip}</span>
               </div>
+              {transition && (
+                <dl className="changeGrid" aria-label="Agent changes caused by this answer">
+                  <div><dt>Mastery</dt><dd>{transition.before}% <span>→</span> {transition.after}%</dd></div>
+                  <div><dt>Difficulty</dt><dd>{transition.from} <span>→</span> {transition.to}</dd></div>
+                  <div><dt>Mistake memory</dt><dd>{transition.mistake ?? "No new pattern"}</dd></div>
+                  <div><dt>Study plan</dt><dd>Rebuilt from new evidence</dd></div>
+                </dl>
+              )}
               <button className="btn primary" onClick={next}>
                 {correct && recoveryTarget && q.id !== recoveryTarget.id
                   ? "Retry the target skill →"
@@ -1148,6 +1175,14 @@ function Practice({
                 : `Selected ${q.skill} at difficulty ${q.difficulty} because it is your lowest current mastery.`}
             </p>
           </div>
+          <details className="whyQuestion" open>
+            <summary>Why this question?</summary>
+            <p>
+              {q.skill} is currently your weakest skill at {student.mastery[q.skill]}% mastery.
+              This {q.difficulty === 1 ? "foundation" : q.difficulty === 2 ? "medium" : "advanced"} question matches your recent performance
+              {q.prerequisite ? ` and checks the prerequisite “${q.prerequisite}.”` : "."}
+            </p>
+          </details>
           <div className="miniMastery">
             <div>
               <span>Live mastery</span>
@@ -1158,6 +1193,62 @@ function Practice({
           </div>
         </aside>
       </div>
+    </Frame>
+  );
+}
+
+const judgeSteps = [
+  { label: "Diagnostic", title: "Baseline diagnostic completed", detail: "Seven SAT skills scored independently from seeded responses." },
+  { label: "Weakness", title: "Quadratics identified at 42%", detail: "The learner model ranks it below every other Math skill." },
+  { label: "Plan", title: "Personal study plan generated", detail: "Quadratics moves to day one, followed by inference and punctuation." },
+  { label: "Practice", title: "Adaptive practice begins", detail: "A medium quadratic-factoring question is selected from the original question bank." },
+  { label: "Mistake", title: "A sign-error pattern is detected", detail: "The response matches a recurring misconception already in mistake memory." },
+  { label: "Adapt", title: "Difficulty steps down", detail: "The agent chooses factor-pair remediation before retrying the target skill." },
+  { label: "Dashboard", title: "Mastery and plan update", detail: "Quadratics changes from 42% to 34%, and tomorrow’s work is rebuilt." },
+  { label: "Decision log", title: "Every action is explained", detail: "Trigger, evidence, rule, and next action remain visible for judges." },
+];
+
+function JudgeDemo({ setStudent }: { setStudent: React.Dispatch<React.SetStateAction<Student>> }) {
+  const [step, setStep] = useState(0);
+  const current = judgeSteps[step];
+  const complete = step === judgeSteps.length - 1;
+  const advance = () => {
+    const nextStep = Math.min(step + 1, judgeSteps.length - 1);
+    if (nextStep === 6) {
+      setStudent((student) => {
+        const mastery = { ...student.mastery, Quadratics: 34 };
+        return {
+          ...student,
+          mastery,
+          mistakes: { ...student.mistakes, "Sign errors": 5 },
+          plan: generateStudyPlan(Object.entries(mastery).map(([skill, value]) => ({ skill, mastery: value }))),
+          decisions: [{
+            id: id(), time: now(), kind: "adapt", title: "Quadratics moved to foundation practice",
+            reason: "A repeated sign error lowered mastery from 42% to 34%. Factor-pair remediation was selected before a target retry.",
+            evidence: { trigger: "incorrect answer", masteryBefore: 42, masteryAfter: 34, previousDifficulty: "Medium", nextDifficulty: "Foundation", action: "teach factor pairs" },
+          }, ...student.decisions],
+        };
+      });
+    }
+    setStep(nextStep);
+  };
+  return (
+    <Frame page="judge">
+      <section className="judgeHero">
+        <div><Pill tone="violet">90-SECOND JUDGE MODE</Pill><h1>Watch the agent close the learning loop.</h1><p>No login, API key, or paid request. Each click advances one auditable decision.</p></div>
+        <div className="judgeProgress" aria-label={`Step ${step + 1} of ${judgeSteps.length}`}><b>{step + 1}<small> / {judgeSteps.length}</small></b><Progress value={((step + 1) / judgeSteps.length) * 100} color="blue" /></div>
+      </section>
+      <ol className="judgeRail" aria-label="Demo stages">
+        {judgeSteps.map((item, index) => <li key={item.label} className={index < step ? "done" : index === step ? "active" : ""}><span>{index < step ? "✓" : index + 1}</span><small>{item.label}</small></li>)}
+      </ol>
+      <section className="judgeStage" aria-live="polite">
+        <div className="stageVisual"><span>{step < 4 ? "◎" : step < 6 ? "✎" : "↗"}</span><small>LIVE AGENT EVENT</small></div>
+        <div><Pill>{current.label.toUpperCase()}</Pill><h2>{current.title}</h2><p>{current.detail}</p>
+          {step >= 4 && <dl className="changeGrid"><div><dt>Mastery</dt><dd>42% <span>→</span> 34%</dd></div><div><dt>Difficulty</dt><dd>Medium <span>→</span> Foundation</dd></div><div><dt>Pattern</dt><dd>Repeated sign error</dd></div><div><dt>Next action</dt><dd>Factor-pair remediation</dd></div></dl>}
+          {!complete ? <button className="btn primary" onClick={advance}>Continue: {judgeSteps[step + 1].label} →</button> : <div className="judgeFinish"><b>Agent loop complete</b><p>Weakness detected · mastery updated · plan rebuilt · practice adapted · mistake remembered · decision explained.</p><div><a className="btn primary" href="/dashboard">See updated dashboard</a><a className="btn ghost" href="/agent">Inspect decision log</a></div></div>}
+        </div>
+      </section>
+      <button className="textBtn" onClick={() => { setStudent(structuredClone(demo)); setStep(0); }}>Restart judge demo</button>
     </Frame>
   );
 }
@@ -1538,6 +1629,7 @@ export function AcePathApp({ page }: { page: Page }) {
   if (page === "practice")
     return <Practice student={student} setStudent={setStudent} />;
   if (page === "dashboard") return <Dashboard student={student} />;
+  if (page === "judge") return <JudgeDemo setStudent={setStudent} />;
   if (page === "study-plan") return <StudyPlan student={student} />;
   if (page === "progress") return <ProgressPage student={student} />;
   if (page === "mistakes") return <Mistakes student={student} />;
