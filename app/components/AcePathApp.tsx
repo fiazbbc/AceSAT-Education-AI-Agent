@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildDecisionEvidence,
   generateStudyPlan,
@@ -506,6 +506,7 @@ function Preferences() {
 function Frame({ page, children }: { page: Page; children: React.ReactNode }) {
   return (
     <div className="app">
+      <QuillCursor />
       <a className="skip" href="#main">
         Skip to content
       </a>
@@ -532,7 +533,60 @@ function Frame({ page, children }: { page: Page; children: React.ReactNode }) {
   );
 }
 
+const faqs = [
+  {
+    question: "Is AcePath really free?",
+    answer: "Yes. The complete diagnostic, adaptive practice loop, study plan, progress tracking, and decision log work without a subscription or paid API call.",
+  },
+  {
+    question: "How is this different from a study chatbot?",
+    answer: "AcePath maintains a learner model. Every answer updates skill mastery, mistake memory, question difficulty, and the next action. You can inspect the evidence in the agent decision log.",
+  },
+  {
+    question: "What happens when I get a question wrong?",
+    answer: "The agent identifies the mistake pattern, adjusts mastery, may step down to a prerequisite, schedules a review, and selects a better-matched next question.",
+  },
+  {
+    question: "Does the demo need an account or API key?",
+    answer: "No. Try Demo opens a seeded student journey immediately, and all essential learning decisions run deterministically in the app.",
+  },
+];
+
+function QuillCursor() {
+  const cursorRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+    const interactive = "a, button, summary, [data-quill]";
+    const move = (event: PointerEvent) => {
+      const cursor = cursorRef.current;
+      if (!cursor) return;
+      cursor.style.translate = `${event.clientX}px ${event.clientY}px`;
+      cursor.dataset.visible = (event.target as Element)?.closest?.(interactive) ? "true" : "false";
+    };
+    const ink = (event: PointerEvent) => {
+      if (!(event.target as Element)?.closest?.(interactive)) return;
+      const drop = document.createElement("span");
+      drop.className = "inkDrop";
+      drop.style.left = `${event.clientX}px`;
+      drop.style.top = `${event.clientY}px`;
+      document.body.append(drop);
+      window.setTimeout(() => drop.remove(), 650);
+    };
+    window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("pointerdown", ink, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerdown", ink);
+      document.querySelectorAll(".inkDrop").forEach((drop) => drop.remove());
+    };
+  }, []);
+
+  return <span ref={cursorRef} className="quillCursor" aria-hidden="true">🪶</span>;
+}
+
 function Landing() {
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
   return (
     <div className="landing">
       <Header page="home" />
@@ -668,6 +722,33 @@ function Landing() {
           <a className="btn light" href="/diagnostic?new=1">
             Build my study path →
           </a>
+        </section>
+        <section className="faq" aria-labelledby="faq-title">
+          <Pill>QUICK ANSWERS</Pill>
+          <h2 id="faq-title">Questions students ask first.</h2>
+          <div className="faqList">
+            {faqs.map((item, index) => {
+              const isOpen = openFaq === index;
+              return (
+                <article className={isOpen ? "faqItem open" : "faqItem"} key={item.question}>
+                  <h3>
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      aria-controls={`faq-answer-${index}`}
+                      onClick={() => setOpenFaq(isOpen ? null : index)}
+                    >
+                      <span>{item.question}</span>
+                      <i aria-hidden="true" />
+                    </button>
+                  </h3>
+                  <div className="faqAnswer" id={`faq-answer-${index}`} aria-hidden={!isOpen}>
+                    <p>{item.answer}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </section>
       </main>
     </div>
@@ -1449,7 +1530,7 @@ export function AcePathApp({ page }: { page: Page }) {
         Loading your learning path…
       </div>
     );
-  if (page === "home") return <Landing />;
+  if (page === "home") return <><QuillCursor /><Landing /></>;
   if (page === "diagnostic")
     return (
       <Diagnostic student={student} setStudent={setStudent} reset={reset} />
