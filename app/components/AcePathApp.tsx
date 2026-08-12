@@ -372,6 +372,30 @@ function now() {
 function id() {
   return `${Date.now()}-${Math.random()}`;
 }
+function playAnswerSound(correct: boolean) {
+  try {
+    const AudioContextClass = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + (correct ? 0.42 : 0.3));
+    gain.connect(context.destination);
+    const notes = correct ? [523.25, 659.25, 783.99] : [220, 164.81];
+    notes.forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = correct ? "sine" : "triangle";
+      oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      oscillator.start(context.currentTime + index * 0.09);
+      oscillator.stop(context.currentTime + index * 0.09 + 0.18);
+    });
+    setTimeout(() => void context.close(), 650);
+  } catch {
+    // Audio feedback is optional; visual feedback remains complete.
+  }
+}
 function Logo() {
   return (
     <Link className="logo" href="/">
@@ -976,7 +1000,7 @@ function QuestionView({
   revealAnswer?: boolean;
 }) {
   return (
-    <section className="questionCard">
+    <section className={`questionCard ${revealAnswer ? (chosen === q.answer ? "answerCorrect" : "answerWrong") : ""}`}>
       <div className="qMeta">
         <Pill tone={q.area === "Math" ? "blue" : "violet"}>{q.area}</Pill>
         <span>
@@ -1012,6 +1036,10 @@ function Practice({
   setStudent: React.Dispatch<React.SetStateAction<Student>>;
 }) {
   const [mode, setMode] = useState<"targeted" | "quick" | "custom" | "test">("targeted");
+  const [testLength, setTestLength] = useState<"short" | "medium" | "full">("short");
+  const [testStarted, setTestStarted] = useState(false);
+  const [testSeconds, setTestSeconds] = useState(28 * 60);
+  const [flagged, setFlagged] = useState(false);
   const focus = useMemo(
     () =>
       Object.entries(student.mastery).sort((a, b) => a[1] - b[1])[0]?.[0] ??
@@ -1045,8 +1073,20 @@ function Practice({
     mistake?: string;
   } | null>(null);
   const correct = chosen === q.answer;
+  const testConfigs = {
+    short: { title: "Short Check", questions: 20, minutes: 28, detail: "10 Reading & Writing + 10 Math" },
+    medium: { title: "Half Test", questions: 49, minutes: 67, detail: "Balanced half-length SAT practice" },
+    full: { title: "Full-Length SAT", questions: 98, minutes: 134, detail: "54 Reading & Writing + 44 Math · 10-minute break" },
+  } as const;
+  const testConfig = testConfigs[testLength];
+  useEffect(() => {
+    if (!testStarted || testSeconds <= 0) return;
+    const timer = setInterval(() => setTestSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [testStarted, testSeconds]);
   function check() {
     if (chosen === null) return;
+    playAnswerSound(correct);
     const repeated = student.mistakes[q.mistake] ?? 0;
     const score = updateMastery(student.mastery[q.skill], {
       correct,
@@ -1152,10 +1192,12 @@ function Practice({
           ["quick", "Quick Drill", "5 questions for a short session"],
           ["custom", "Build Your Own", "Choose skill and difficulty"],
           ["test", "Test Mode", "SAT-style pacing—not official Bluebook"],
-        ] as const).map(([key, title, detail]) => <button type="button" key={key} className={mode === key ? "active" : ""} onClick={() => setMode(key)}><b>{title}</b><small>{detail}</small></button>)}
+        ] as const).map(([key, title, detail]) => <button type="button" key={key} className={mode === key ? "active" : ""} onClick={() => { setMode(key); setTestStarted(false); }}><b>{title}</b><small>{detail}</small></button>)}
       </section>
       <section className="nextBest"><div><Pill tone="coral">NEXT BEST ACTION</Pill><h2>{satDomain[focus]} · {focus}</h2><p>Your weakest high-priority skill · {mode === "quick" ? "5 questions · ~7 min" : mode === "test" ? "timed mixed practice" : "10 questions · ~14 min"}</p></div><span>{priorityLabel(student.mastery[focus], Object.values(student.mistakes).reduce((a,b)=>a+b,0))}</span></section>
-      <div className="practiceLayout">
+      {mode === "test" && !testStarted && <section className="testSetup" aria-labelledby="test-setup-title"><div><Pill tone="blue">TEST MODE SETUP</Pill><h2 id="test-setup-title">Choose your test length</h2><p>Timed, module-based SAT-style practice with a navigator, flagging, calculator access, and review. AcePath is not official Bluebook.</p></div><div className="testLengths">{(Object.entries(testConfigs) as [typeof testLength, typeof testConfig][]).map(([key, config]) => <button type="button" key={key} className={testLength === key ? "active" : ""} onClick={() => setTestLength(key)}><b>{config.title}</b><strong>{config.questions} questions</strong><span>~{config.minutes >= 60 ? `${Math.floor(config.minutes / 60)} hr ${config.minutes % 60} min` : `${config.minutes} min`}</span><small>{config.detail}</small></button>)}</div><button className="btn primary" type="button" onClick={() => { setTestSeconds(testConfig.minutes * 60); setTestStarted(true); }}>Start {testConfig.title} →</button>{testLength === "full" && <small className="officialTiming">Full Length follows the current 98-question, 134-minute SAT structure. A 10-minute break is additional. <a href="https://satsuite.collegeboard.org/sat/whats-on-the-test/structure" target="_blank" rel="noopener noreferrer">College Board structure ↗</a></small>}</section>}
+      {mode === "test" && testStarted && <section className="testToolbar" aria-label="Test controls"><div><span>SECTION 1 · MODULE 1</span><b>Question 1 of {testConfig.questions}</b></div><time aria-label="Time remaining">{String(Math.floor(testSeconds/60)).padStart(2,"0")}:{String(testSeconds%60).padStart(2,"0")}</time><button type="button" className={flagged ? "active" : ""} onClick={() => setFlagged((value)=>!value)}>{flagged ? "⚑ Flagged" : "⚐ Flag for review"}</button><div className="questionNav" aria-label="Question navigator">{Array.from({length:Math.min(10,testConfig.questions)},(_,index)=><button type="button" className={index===0?"current":""} key={index}>{index+1}</button>)}</div></section>}
+      <div className={`practiceLayout ${mode === "test" && !testStarted ? "setupPending" : ""}`}>
         <div>
           <QuestionView
             q={q}
