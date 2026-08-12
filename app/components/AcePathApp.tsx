@@ -353,10 +353,8 @@ function id() {
 function Logo() {
   return (
     <a className="logo" href="/">
-      <span className="logoMark">A</span>
-      <span>
-        AcePath <b>AI</b>
-      </span>
+      <img className="officialLogoMark" src="/acepath.svg" alt="" width="32" height="32" />
+      <span className="officialWordmark"><b>ACE</b><i>path</i></span>
     </a>
   );
 }
