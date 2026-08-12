@@ -899,6 +899,8 @@ function Practice({
   const [chosen, setChosen] = useState<number | null>(null);
   const [checked, setChecked] = useState(false);
   const [recoveryTarget, setRecoveryTarget] = useState<Question | null>(null);
+  const [confidence, setConfidence] = useState<"guessing" | "unsure" | "confident">("unsure");
+  const [hintOpen, setHintOpen] = useState(false);
   const correct = chosen === q.answer;
   function check() {
     if (chosen === null) return;
@@ -961,6 +963,7 @@ function Practice({
       setRecoveryTarget(null);
       setChosen(null);
       setChecked(false);
+      setHintOpen(false);
       return;
     }
     const targetDifficulty = correct
@@ -976,6 +979,7 @@ function Practice({
     setQ(nextQ);
     setChosen(null);
     setChecked(false);
+    setHintOpen(false);
   }
   return (
     <Frame page="practice">
@@ -997,6 +1001,16 @@ function Practice({
             setChosen={setChosen}
             disabled={checked}
           />
+          {!checked && (
+            <div className="practiceTools">
+              <button className="hintButton" onClick={() => setHintOpen((v) => !v)} aria-expanded={hintOpen}>💡 {hintOpen ? "Hide hint" : "Need a hint?"}</button>
+              <div className="confidence" aria-label="Confidence check">
+                <span>How sure are you?</span>
+                {(["guessing", "unsure", "confident"] as const).map((level) => <button key={level} className={confidence === level ? "active" : ""} onClick={() => setConfidence(level)}>{level === "guessing" ? "😅 Guessing" : level === "unsure" ? "🤔 Unsure" : "😎 Got this"}</button>)}
+              </div>
+            </div>
+          )}
+          {hintOpen && !checked && <div className="hintCard" role="status"><b>Hint 1 of 2</b><p>{q.tip}</p></div>}
           {!checked ? (
             <button
               className="btn primary wide"
@@ -1014,6 +1028,7 @@ function Practice({
               <Pill tone={correct ? "mint" : "coral"}>
                 {correct ? "✓ CORRECT" : "MISTAKE ANALYZED"}
               </Pill>
+              <div className="xpPop">+{correct ? (confidence === "confident" ? 12 : 10) : 2} XP</div>
               <h3>
                 {correct
                   ? "Mastery increased."
@@ -1076,8 +1091,13 @@ function Dashboard({ student }: { student: Student }) {
       )
     : 0;
   const latest = student.decisions[0];
+  const xp = student.answers.length * 10 + Object.values(student.mastery).filter((score) => score >= 80).length * 50;
+  const level = Math.floor(xp / 500) + 1;
   return (
     <Frame page="dashboard">
+      <section className="levelBar" aria-label={`Level ${level}, ${xp % 500} of 500 XP`}>
+        <div className="levelOrb">{level}</div><div><span>LEVEL {level} · KNOWLEDGE EXPLORER</span><Progress value={(xp % 500) / 5} color="blue"/><small>{500 - (xp % 500)} XP to the next level</small></div><div className="streakChip">🔥 6 day streak</div>
+      </section>
       <div className="welcome">
         <div>
           <Pill>LIVE LEARNER MODEL</Pill>
@@ -1153,6 +1173,12 @@ function Dashboard({ student }: { student: Student }) {
           <a href="/agent">See decision log →</a>
         </aside>
       </div>
+      <section className="questBoard">
+        <div><Pill tone="violet">TODAY'S QUESTS</Pill><h2>Small wins. Real momentum.</h2><p>Finish all three to earn the Focus Finisher badge.</p></div>
+        <div className="quest"><span>⚡</span><div><b>Warm-up win</b><small>Answer 3 questions · 20 XP</small></div><i>2 / 3</i></div>
+        <div className="quest"><span>🧠</span><div><b>Face a weak spot</b><small>Practice your lowest skill · 30 XP</small></div><i>READY</i></div>
+        <div className="quest"><span>🎯</span><div><b>Bounce back</b><small>Master a prerequisite · 40 XP</small></div><i>0 / 1</i></div>
+      </section>
       <section className="panel skills">
         <div className="panelHead">
           <div>
