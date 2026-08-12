@@ -1040,6 +1040,10 @@ function Practice({
   const [testStarted, setTestStarted] = useState(false);
   const [testSeconds, setTestSeconds] = useState(28 * 60);
   const [flagged, setFlagged] = useState(false);
+  const [testQuestionIndex, setTestQuestionIndex] = useState(0);
+  const [customSkill, setCustomSkill] = useState("Quadratics");
+  const [customDifficulty, setCustomDifficulty] = useState<1 | 2 | 3>(2);
+  const [customCount, setCustomCount] = useState(10);
   const focus = useMemo(
     () =>
       Object.entries(student.mastery).sort((a, b) => a[1] - b[1])[0]?.[0] ??
@@ -1079,6 +1083,25 @@ function Practice({
     full: { title: "Full-Length SAT", questions: 98, minutes: 134, detail: "54 Reading & Writing + 44 Math · 10-minute break" },
   } as const;
   const testConfig = testConfigs[testLength];
+  const testQuestions = useMemo(() => {
+    const readingCount = testLength === "full" ? 54 : testLength === "medium" ? 27 : 10;
+    const reading = bank.filter((question) => question.area === "Reading & Writing").slice(0, readingCount);
+    const math = bank.filter((question) => question.area === "Math").slice(0, testConfig.questions - readingCount);
+    return [...reading, ...math];
+  }, [testConfig.questions, testLength]);
+  const readingCount = testLength === "full" ? 54 : testLength === "medium" ? 27 : 10;
+  const readingModule = Math.ceil(readingCount / 2);
+  const mathModule = Math.ceil((testConfig.questions - readingCount) / 2);
+  const testModuleLabel = testQuestionIndex < readingModule ? "READING & WRITING · MODULE 1" : testQuestionIndex < readingCount ? "READING & WRITING · MODULE 2" : testQuestionIndex < readingCount + mathModule ? "MATH · MODULE 1" : "MATH · MODULE 2";
+  const loadQuestion = (question: Question, index?: number) => {
+    setQ(question);
+    if (typeof index === "number") setTestQuestionIndex(index);
+    setChosen(null);
+    setChecked(false);
+    setHintOpen(false);
+    setTransition(null);
+    setFlagged(false);
+  };
   useEffect(() => {
     if (!testStarted || testSeconds <= 0) return;
     const timer = setInterval(() => setTestSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
@@ -1148,6 +1171,12 @@ function Practice({
     setChecked(true);
   }
   function next() {
+    if (mode === "test" && testStarted) {
+      const nextIndex = testQuestionIndex + 1;
+      if (nextIndex < testQuestions.length) loadQuestion(testQuestions[nextIndex], nextIndex);
+      else setTestStarted(false);
+      return;
+    }
     if (correct && recoveryTarget && q.id !== recoveryTarget.id) {
       setQ(recoveryTarget);
       setRecoveryTarget(null);
@@ -1192,11 +1221,12 @@ function Practice({
           ["quick", "Quick Drill", "5 questions for a short session"],
           ["custom", "Build Your Own", "Choose skill and difficulty"],
           ["test", "Test Mode", "SAT-style pacing—not official Bluebook"],
-        ] as const).map(([key, title, detail]) => <button type="button" key={key} className={mode === key ? "active" : ""} onClick={() => { setMode(key); setTestStarted(false); }}><b>{title}</b><small>{detail}</small></button>)}
+        ] as const).map(([key, title, detail]) => <button type="button" key={key} className={mode === key ? "active" : ""} onClick={() => { setMode(key); setTestStarted(false); if (key === "quick") loadQuestion(pool.find((item)=>item.difficulty===1) ?? pool[0]); }}><b>{title}</b><small>{detail}</small></button>)}
       </section>
       <section className="nextBest"><div><Pill tone="coral">NEXT BEST ACTION</Pill><h2>{satDomain[focus]} · {focus}</h2><p>Your weakest high-priority skill · {mode === "quick" ? "5 questions · ~7 min" : mode === "test" ? "timed mixed practice" : "10 questions · ~14 min"}</p></div><span>{priorityLabel(student.mastery[focus], Object.values(student.mistakes).reduce((a,b)=>a+b,0))}</span></section>
-      {mode === "test" && !testStarted && <section className="testSetup" aria-labelledby="test-setup-title"><div><Pill tone="blue">TEST MODE SETUP</Pill><h2 id="test-setup-title">Choose your test length</h2><p>Timed, module-based SAT-style practice with a navigator, flagging, calculator access, and review. AcePath is not official Bluebook.</p></div><div className="testLengths">{(Object.entries(testConfigs) as [typeof testLength, typeof testConfig][]).map(([key, config]) => <button type="button" key={key} className={testLength === key ? "active" : ""} onClick={() => setTestLength(key)}><b>{config.title}</b><strong>{config.questions} questions</strong><span>~{config.minutes >= 60 ? `${Math.floor(config.minutes / 60)} hr ${config.minutes % 60} min` : `${config.minutes} min`}</span><small>{config.detail}</small></button>)}</div><button className="btn primary" type="button" onClick={() => { setTestSeconds(testConfig.minutes * 60); setTestStarted(true); }}>Start {testConfig.title} →</button>{testLength === "full" && <small className="officialTiming">Full Length follows the current 98-question, 134-minute SAT structure. A 10-minute break is additional. <a href="https://satsuite.collegeboard.org/sat/whats-on-the-test/structure" target="_blank" rel="noopener noreferrer">College Board structure ↗</a></small>}</section>}
-      {mode === "test" && testStarted && <section className="testToolbar" aria-label="Test controls"><div><span>SECTION 1 · MODULE 1</span><b>Question 1 of {testConfig.questions}</b></div><time aria-label="Time remaining">{String(Math.floor(testSeconds/60)).padStart(2,"0")}:{String(testSeconds%60).padStart(2,"0")}</time><button type="button" className={flagged ? "active" : ""} onClick={() => setFlagged((value)=>!value)}>{flagged ? "⚑ Flagged" : "⚐ Flag for review"}</button><div className="questionNav" aria-label="Question navigator">{Array.from({length:Math.min(10,testConfig.questions)},(_,index)=><button type="button" className={index===0?"current":""} key={index}>{index+1}</button>)}</div></section>}
+      {mode === "custom" && <section className="customSetup" aria-labelledby="custom-setup-title"><div><Pill tone="blue">BUILD YOUR OWN</Pill><h2 id="custom-setup-title">Configure your drill</h2></div><label>Skill<select value={customSkill} onChange={(event)=>setCustomSkill(event.target.value)}>{Object.keys(student.mastery).map((skill)=><option key={skill}>{skill}</option>)}</select></label><label>Difficulty<select value={customDifficulty} onChange={(event)=>setCustomDifficulty(Number(event.target.value) as 1|2|3)}><option value="1">Foundation</option><option value="2">Medium</option><option value="3">Advanced</option></select></label><label>Questions<select value={customCount} onChange={(event)=>setCustomCount(Number(event.target.value))}><option>5</option><option>10</option><option>15</option><option>20</option></select></label><button className="btn primary" type="button" onClick={()=>loadQuestion(bank.find((item)=>item.skill===customSkill&&item.difficulty===customDifficulty) ?? bank.find((item)=>item.skill===customSkill) ?? bank[0])}>Start {customCount}-question drill</button></section>}
+      {mode === "test" && !testStarted && <section className="testSetup" aria-labelledby="test-setup-title"><div><Pill tone="blue">TEST MODE SETUP</Pill><h2 id="test-setup-title">Choose your test length</h2><p>Timed, module-based SAT-style practice with a navigator, flagging, calculator access, and review. AcePath is not official Bluebook.</p></div><div className="testLengths">{(Object.entries(testConfigs) as [typeof testLength, typeof testConfig][]).map(([key, config]) => <button type="button" key={key} className={testLength === key ? "active" : ""} onClick={() => setTestLength(key)}><b>{config.title}</b><strong>{config.questions} questions</strong><span>~{config.minutes >= 60 ? `${Math.floor(config.minutes / 60)} hr ${config.minutes % 60} min` : `${config.minutes} min`}</span><small>{config.detail}</small></button>)}</div><button className="btn primary" type="button" onClick={() => { setTestSeconds(testConfig.minutes * 60); setTestQuestionIndex(0); loadQuestion(testQuestions[0],0); setTestStarted(true); }}>Start {testConfig.title} →</button>{testLength === "full" && <small className="officialTiming">Full Length follows the current 98-question, 134-minute SAT structure. A 10-minute break is additional. <a href="https://satsuite.collegeboard.org/sat/whats-on-the-test/structure" target="_blank" rel="noopener noreferrer">College Board structure ↗</a></small>}</section>}
+      {mode === "test" && testStarted && <section className="testToolbar" aria-label="Test controls"><div><span>{testModuleLabel}</span><b>Question {testQuestionIndex + 1} of {testConfig.questions}</b></div><time aria-label="Time remaining">{String(Math.floor(testSeconds/60)).padStart(2,"0")}:{String(testSeconds%60).padStart(2,"0")}</time><button type="button" className={flagged ? "active" : ""} onClick={() => setFlagged((value)=>!value)}>{flagged ? "⚑ Flagged" : "⚐ Flag for review"}</button><div className="questionNav" aria-label="Question navigator">{Array.from({length:testConfig.questions},(_,index)=><button type="button" aria-label={`Go to question ${index+1}`} onClick={()=>loadQuestion(testQuestions[index],index)} className={index===testQuestionIndex?"current":""} key={index}>{index+1}</button>)}</div></section>}
       <div className={`practiceLayout ${mode === "test" && !testStarted ? "setupPending" : ""}`}>
         <div>
           <QuestionView
