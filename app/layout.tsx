@@ -3,6 +3,7 @@ import "./globals.css";
 import "./student-theme.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://acepath-sat-demo.vercel.app"),
   title: "AcePath AI — Your adaptive SAT study path",
   description:
     "A free adaptive SAT tutor that learns how you learn and builds the next best step.",

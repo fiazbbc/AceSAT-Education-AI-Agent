@@ -3,7 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 
 interface Fetcher { fetch(request: Request): Promise<Response> }
-interface D1Database {}
+type D1Database = object;
 
 interface Env {
   ASSETS: Fetcher;
