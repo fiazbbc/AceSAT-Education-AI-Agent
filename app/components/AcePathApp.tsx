@@ -315,8 +315,15 @@ function useStudent() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(KEY);
-      if (saved) setStudent(JSON.parse(saved));
+      const wantsDemo = new URLSearchParams(window.location.search).has("demo");
+      if (wantsDemo) {
+        const seeded = structuredClone(demo);
+        setStudent(seeded);
+        localStorage.setItem(KEY, JSON.stringify(seeded));
+      } else {
+        const saved = localStorage.getItem(KEY);
+        if (saved) setStudent(JSON.parse(saved));
+      }
     } finally {
       setReady(true);
     }
@@ -533,6 +540,7 @@ function Landing() {
         <section className="hero">
           <div className="heroCopy">
             <Pill>✦ FREE, ADAPTIVE SAT SUPPORT</Pill>
+            <div className="zeroCostBadge"><span>✓</span><b>Zero-cost demo mode</b><small>No AI key · no paid calls · no signup</small></div>
             <h1>
               Your SAT path,
               <br />
@@ -546,8 +554,8 @@ function Landing() {
               <a className="btn primary" href="/diagnostic?new=1">
                 Start a diagnostic <span>→</span>
               </a>
-              <a className="btn ghost" href="/dashboard">
-                Explore demo student
+              <a className="btn ghost" href="/dashboard?demo=1">
+                Try Demo — instant access
               </a>
             </div>
             <small>

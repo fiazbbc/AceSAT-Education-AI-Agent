@@ -2,7 +2,7 @@
 
 AcePath AI is a free, lightweight adaptive SAT tutor built for students who do not have access to private tutoring or expensive prep platforms. It turns every answer into a next action: a mastery update, an adaptive question, a mistake-memory entry, or a change to the weekly study plan.
 
-**Hackathon demo:** choose **Explore demo student** for a populated learner, or **Start a diagnostic** for the complete new-student flow. The demo does not require an AI key.
+**Hackathon demo:** choose **Try Demo — instant access** for a freshly reset populated learner, or **Start a diagnostic** for the complete new-student flow. Zero-cost mode is the production default and does not require an AI key, account, or paid network call.
 
 ## Why it matters
 
