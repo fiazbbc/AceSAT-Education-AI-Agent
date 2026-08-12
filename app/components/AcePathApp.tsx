@@ -967,11 +967,13 @@ function QuestionView({
   chosen,
   setChosen,
   disabled = false,
+  revealAnswer = false,
 }: {
   q: Question;
   chosen: number | null;
   setChosen: (i: number) => void;
   disabled?: boolean;
+  revealAnswer?: boolean;
 }) {
   return (
     <section className="questionCard">
@@ -990,7 +992,8 @@ function QuestionView({
             aria-pressed={chosen === i}
             key={o}
             onClick={() => setChosen(i)}
-            className={`option ${chosen === i ? "selected" : ""}`}
+            className={`option ${chosen === i ? "selected" : ""} ${revealAnswer && i === q.answer ? "correct" : ""} ${revealAnswer && chosen === i && i !== q.answer ? "wrong" : ""}`}
+            aria-label={`${String.fromCharCode(65 + i)}. ${o}${revealAnswer && i === q.answer ? ", correct answer" : revealAnswer && chosen === i ? ", your incorrect answer" : ""}`}
           >
             <span>{String.fromCharCode(65 + i)}</span>
             {o}
@@ -1159,6 +1162,7 @@ function Practice({
             chosen={chosen}
             setChosen={setChosen}
             disabled={checked}
+            revealAnswer={checked}
           />
           {!checked && (
             <div className="practiceTools">
@@ -1190,10 +1194,19 @@ function Practice({
               <div className="xpPop">+{correct ? (confidence === "confident" ? 12 : 10) : 2} XP</div>
               <h3>
                 {correct
-                  ? "Mastery increased."
-                  : "The agent changed your path."}
+                  ? `Correct — ${String.fromCharCode(65 + q.answer)} is the answer.`
+                  : `Not quite — the correct answer is ${String.fromCharCode(65 + q.answer)}: ${q.options[q.answer]}.`}
               </h3>
               <p>{q.explanation}</p>
+              <section className="optionReview" aria-labelledby="option-review-title">
+                <h4 id="option-review-title">Why each option is right or wrong</h4>
+                {q.options.map((option, index) => {
+                  const isAnswer = index === q.answer;
+                  const wasChosen = index === chosen;
+                  return <article className={isAnswer ? "right" : "notRight"} key={`${q.id}-review-${index}`}><span>{String.fromCharCode(65 + index)}</span><div><b>{option} — {isAnswer ? "Correct" : "Incorrect"}{wasChosen && !isAnswer ? " · Your choice" : ""}</b><p>{isAnswer ? q.explanation : wasChosen ? `This choice reflects the “${q.mistake}” pattern. ${q.tip}` : `This option does not produce the required result or relationship. ${q.tip}`}</p></div></article>;
+                })}
+                <small>These explanations are written for AcePath&apos;s original SAT-style question bank; they are not official College Board mark schemes.</small>
+              </section>
               {!correct && <div className="mistakeAnalysis"><div><b>What happened</b><p>{q.mistake}: your choice did not apply {q.tip.toLowerCase()}</p></div><div><b>Mistake type</b><p>{confidence === "confident" ? "Possible misconception" : confidence === "guessing" ? "Guessing / concept gap" : "Process error"}</p></div><div><b>Skill</b><p>{satDomain[q.skill]} → {q.skill}</p></div></div>}
               <div className="tip">
                 <b>Tip</b>
