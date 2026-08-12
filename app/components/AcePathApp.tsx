@@ -9,6 +9,7 @@ import {
   scheduleMistakeReview,
   updateMastery,
 } from "../../lib/agent-core.mjs";
+import { expandedQuestionBank } from "../../lib/question-bank";
 
 type Page =
   | "home"
@@ -58,7 +59,7 @@ type Student = {
   }[];
 };
 
-const bank: Question[] = [
+const coreBank: Question[] = [
   {
     id: "lin-1",
     skill: "Linear equations",
@@ -207,6 +208,7 @@ const bank: Question[] = [
   { id:"infer-2", skill:"Inference", area:"Reading & Writing", difficulty:1, prompt:"A café adds outdoor tables, and weekend customer counts rise. Which claim is best supported?", options:["Outdoor seating may attract customers.","All customers prefer eating outdoors.","Indoor tables are unnecessary.","The café changed its menu."], answer:0, explanation:"The timing supports a cautious connection between added seating and more customers.", tip:"Prefer qualified claims over absolute ones.", mistake:"Overstated inference" },
   { id:"infer-3", skill:"Inference", area:"Reading & Writing", difficulty:2, prompt:"A researcher finds that seedlings under blue light grew taller than those under red light in the same conditions. What is best supported?", options:["Blue light always guarantees growth.","Light color may influence seedling height.","Red light kills seedlings.","Soil had no effect."], answer:1, explanation:"The controlled comparison supports a cautious claim that light color may influence height.", tip:"Keep the conclusion within the study's evidence.", mistake:"Unsupported inference", prerequisite:"Evidence boundaries" },
 ];
+const bank: Question[] = [...coreBank, ...expandedQuestionBank];
 const skillArea: Record<string, Area> = {
   "Linear equations": "Math",
   Quadratics: "Math",
@@ -673,8 +675,8 @@ function Landing() {
             <small>free for students</small>
           </div>
           <div>
-            <b>7 skills</b>
-            <small>measured individually</small>
+            <b>{bank.length} questions</b>
+            <small>original and fully explained</small>
           </div>
           <div>
             <b>Every answer</b>
@@ -986,7 +988,10 @@ function Practice({
     mastery: student.mastery[focus],
     consecutiveIncorrect: misses,
   });
+  const seen = new Set(student.answers.map((answer) => answer.questionId));
   const initial =
+    pool.find((q) => q.difficulty === desired && !seen.has(q.id)) ??
+    pool.find((q) => !seen.has(q.id)) ??
     pool.find((q) => q.difficulty === desired) ?? pool[0] ?? bank[0];
   const [q, setQ] = useState(initial);
   const [chosen, setChosen] = useState<number | null>(null);
@@ -1080,6 +1085,8 @@ function Practice({
         })
       : 1;
     const nextQ =
+      pool.find((x) => x.difficulty === targetDifficulty && x.id !== q.id && !seen.has(x.id)) ??
+      pool.find((x) => x.id !== q.id && !seen.has(x.id)) ??
       pool.find((x) => x.difficulty === targetDifficulty && x.id !== q.id) ??
       pool.find((x) => x.id !== q.id) ??
       q;
