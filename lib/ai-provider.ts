@@ -3,12 +3,6 @@ type TutorPrompt = { question: string; chosenAnswer: string; correctAnswer: stri
 export async function generateTutorExplanation(input: TutorPrompt): Promise<string | null> {
   const provider = process.env.AI_PROVIDER ?? "none";
   const prompt = `You are a concise SAT tutor. Explain why the chosen answer is wrong, show the correct reasoning, name the ${input.skill} skill, and give one useful tip. Question: ${input.question}. Chosen: ${input.chosenAnswer}. Correct: ${input.correctAnswer}.`;
-  if (provider === "openai" && process.env.OPENAI_API_KEY) {
-    const response = await fetch("https://api.openai.com/v1/responses", { method:"POST", headers:{"Content-Type":"application/json",Authorization:`Bearer ${process.env.OPENAI_API_KEY}`}, body:JSON.stringify({model:process.env.OPENAI_MODEL??"gpt-5-mini",input:prompt,max_output_tokens:220}) });
-    if (!response.ok) return null;
-    const data = await response.json() as { output_text?: string };
-    return data.output_text ?? null;
-  }
   if (provider === "gemini" && process.env.GEMINI_API_KEY) {
     const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({contents:[{parts:[{text:prompt}]}]}) });

@@ -35,7 +35,7 @@ Important decisions are deterministic and server-controllable. The engine in `li
 6. Produces human-readable decision reasons for the demo and audit history.
 7. Schedules mistake reviews at expanding intervals and returns from prerequisite remediation to the original target skill.
 
-The provider abstraction in `lib/ai-provider.ts` supports OpenAI or Gemini through environment variables. An LLM may improve explanations and study-plan wording, but it does not control mastery, difficulty, or question selection. When no API key is configured, authored explanations keep the complete learning flow usable.
+The optional provider abstraction in `lib/ai-provider.ts` supports Gemini through environment variables. It may improve explanation wording, but it does not control mastery, difficulty, or question selection. When no API key is configured, authored explanations keep the complete learning flow usable.
 
 Every adaptive decision can include structured evidence: mastery before and after, previous and next difficulty, trigger, and selected action.
 
@@ -71,8 +71,7 @@ To enable persistence, create a Supabase project, run `supabase/schema.sql` in i
 | `NEXT_PUBLIC_SUPABASE_URL` | Public Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-safe Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only privileged operations |
-| `AI_PROVIDER` | `none`, `openai`, or `gemini` |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI explanation provider |
+| `AI_PROVIDER` | `none` or `gemini` |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | Gemini explanation provider |
 
 ## Quality checks
