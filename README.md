@@ -3,7 +3,7 @@
 AcePath is an adaptive SAT study agent for students who cannot rely on a private tutor. Most free test-prep tools give every learner the same queue of questions; AcePath maintains a learner model, remembers error patterns, and changes what the student should do next after every answer.
 
 - **Live demo:** https://acepath-sat-demo.vercel.app/judge?demo=1
-- **Submission video:** _Add Devpost video URL_
+- [Read the AcePath One-Page Writeup](./AcePath_One_Page_Writeup.docx)
 - **No setup required:** no account, API key, or paid service is needed for the demo.
 
 ## Try the judge demo
