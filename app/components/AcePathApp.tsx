@@ -1355,55 +1355,50 @@ function Practice({
   );
 }
 
-const judgeSteps = [
-  { label: "Diagnostic", title: "Baseline diagnostic completed", detail: "Seven SAT skills scored independently from seeded responses." },
-  { label: "Weakness", title: "Quadratics identified at 42%", detail: "The learner model ranks it below every other Math skill." },
-  { label: "Plan", title: "Personal study plan generated", detail: "Quadratics moves to day one, followed by inference and punctuation." },
-  { label: "Practice", title: "Adaptive practice begins", detail: "A medium quadratic-factoring question is selected from the original question bank." },
-  { label: "Mistake", title: "A sign-error pattern is detected", detail: "The response matches a recurring misconception already in mistake memory." },
-  { label: "Adapt", title: "Difficulty steps down", detail: "The agent chooses factor-pair remediation before retrying the target skill." },
-  { label: "Dashboard", title: "Mastery and plan update", detail: "Quadratics changes from 42% to 34%, and tomorrow’s work is rebuilt." },
-  { label: "Decision log", title: "Every action is explained", detail: "Trigger, evidence, rule, and next action remain visible for judges." },
-];
-
-const judgeScenarios = [
-  { label: "I keep getting quadratics wrong.", step: 5, status: "Detecting the recurring sign-error pattern..." },
-  { label: "Build me a 7-day SAT study plan.", step: 2, status: "Prioritizing weak skills and rebuilding the plan..." },
-  { label: "Why did I get this question wrong?", step: 4, status: "Matching the attempt to mistake memory..." },
-  { label: "Give me a quick diagnostic.", step: 1, status: "Scoring seven SAT skill signals..." },
-  { label: "I only have 20 minutes today.", step: 3, status: "Selecting the highest-impact 20-minute session..." },
-];
-
 function JudgeDemo({ student, setStudent }: { student: Student; setStudent: React.Dispatch<React.SetStateAction<Student>> }) {
   const [step, setStep] = useState(0);
+  const [choice, setChoice] = useState<number | null>(null);
+  const [result, setResult] = useState<{ before: number; after: number; correct: boolean; pattern: string; nextDifficulty: string; planChange: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const demoQuestion = coreBank.find((question) => question.id === "quad-2") ?? coreBank[4];
+  const judgeSteps = [
+    { label: "Diagnose", title: "Weakness detected from the learner model", detail: `Quadratics is the lowest Math skill at ${student.mastery.Quadratics}%. It is automatically first in today’s plan.` },
+    { label: "Answer", title: "Answer the agent-selected question", detail: "This medium factoring question was selected because it matches the current mastery and has not been mastered." },
+    { label: "Analyze", title: result ? (result.correct ? "Correct response analyzed" : `Mistake pattern detected: ${result.pattern}`) : "Waiting for evidence", detail: result ? "The same deterministic rule used in Practice updated the learner model." : "Submit an answer to create real evidence." },
+    { label: "Adapt", title: result ? `Difficulty changed to ${result.nextDifficulty}` : "Adaptation pending", detail: result ? result.planChange : "AcePath adapts only after an observed answer." },
+    { label: "Explain", title: "Decision evidence is auditable", detail: "Trigger, mastery change, difficulty change, mistake pattern, and plan action are stored together." },
+  ];
   const current = judgeSteps[step];
   const complete = step === judgeSteps.length - 1;
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
-  const applyAdaptiveUpdate = () => {
-    setStudent((currentStudent) => {
-      if (currentStudent.mastery.Quadratics === 34) return currentStudent;
-      const mastery = { ...currentStudent.mastery, Quadratics: 34 };
-      return {
-        ...currentStudent,
-        mastery,
-        mistakes: { ...currentStudent.mistakes, "Sign errors": 5 },
-        plan: generateStudyPlan(Object.entries(mastery).map(([skill, value]) => ({ skill, mastery: value }))),
-        decisions: [{ id: id(), time: now(), kind: "adapt", title: "Quadratics moved to foundation practice", reason: "A repeated sign error lowered mastery from 42% to 34%. Factor-pair remediation was selected before a target retry.", evidence: { trigger: "incorrect answer", masteryBefore: 42, masteryAfter: 34, previousDifficulty: "Medium", nextDifficulty: "Foundation", action: "teach factor pairs" } }, ...currentStudent.decisions],
-      };
-    });
+  const submitJudgeAnswer = () => {
+    if (choice === null || busy || result) return;
+    const correct = choice === demoQuestion.answer;
+    setBusy("Analyzing response, updating mastery, and rebuilding the plan...");
+    timerRef.current = setTimeout(() => {
+      setStudent((currentStudent) => {
+        const before = currentStudent.mastery[demoQuestion.skill];
+        const repeated = currentStudent.mistakes[demoQuestion.mistake] ?? 0;
+        const after = updateMastery(before, { correct, difficulty: demoQuestion.difficulty, repeatedMistakes: repeated });
+        const difficulty = nextDifficulty({ mastery: after, consecutiveCorrect: correct ? 1 : 0, consecutiveIncorrect: correct ? 0 : 1 });
+        const nextLabel = ["Foundation", "Medium", "Advanced"][difficulty - 1];
+        const mastery = { ...currentStudent.mastery, [demoQuestion.skill]: after };
+        const plan = generateStudyPlan(Object.entries(mastery).map(([skill, value]) => ({ skill, mastery: value })));
+        const action = correct ? "continue matched Quadratics practice" : `add ${demoQuestion.prerequisite ?? "foundation"} prerequisite tomorrow`;
+        setResult({ before, after, correct, pattern: correct ? "No new error pattern" : demoQuestion.mistake, nextDifficulty: nextLabel, planChange: correct ? "Quadratics remains in the plan at matched difficulty." : `${demoQuestion.prerequisite ?? "Foundation practice"} was added before the target retry.` });
+        return { ...currentStudent, mastery, answers: [...currentStudent.answers, { questionId: demoQuestion.id, skill: demoQuestion.skill, correct }], mistakes: correct ? currentStudent.mistakes : { ...currentStudent.mistakes, [demoQuestion.mistake]: repeated + 1 }, plan, decisions: [{ id: id(), time: now(), kind: "adapt", title: correct ? `Quadratics mastery increased to ${after}%` : `Quadratics moved to ${nextLabel.toLowerCase()} practice`, reason: correct ? `A correct medium-difficulty response updated mastery from ${before}% to ${after}%.` : `${demoQuestion.mistake} lowered mastery from ${before}% to ${after}%; ${action}.`, evidence: buildDecisionEvidence({ skill: demoQuestion.skill, before, after, previousDifficulty: "Medium", nextDifficulty: nextLabel, trigger: correct ? "correct answer" : "incorrect answer", action }) }, ...currentStudent.decisions] };
+      });
+      playAnswerSound(correct);
+      setStep(2);
+      setBusy(null);
+    }, 420);
   };
   const advance = () => {
     if (busy) return;
+    if (step === 1 && !result) return;
     const nextStep = Math.min(step + 1, judgeSteps.length - 1);
-    setBusy(nextStep === 6 ? "Updating mastery and rebuilding tomorrow's plan..." : `Running ${judgeSteps[nextStep].label.toLowerCase()} step...`);
-    timerRef.current = setTimeout(() => { if (nextStep >= 6) applyAdaptiveUpdate(); setStep(nextStep); setBusy(null); }, 420);
-  };
-  const runScenario = (scenario: typeof judgeScenarios[number]) => {
-    if (busy) return;
-    setBusy(scenario.status);
-    timerRef.current = setTimeout(() => { if (scenario.step >= 5) applyAdaptiveUpdate(); setStep(scenario.step); setBusy(null); }, 520);
+    setStep(nextStep);
   };
   const resetDemo = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -1412,6 +1407,8 @@ function JudgeDemo({ student, setStudent }: { student: Student; setStudent: Reac
     localStorage.setItem(KEY, JSON.stringify(seeded));
     sessionStorage.setItem(DEMO_SESSION_KEY, "started");
     setBusy(null);
+    setChoice(null);
+    setResult(null);
     setStep(0);
   };
   return (
@@ -1421,34 +1418,32 @@ function JudgeDemo({ student, setStudent }: { student: Student; setStudent: Reac
         <div className="judgeProgress" aria-label={`Step ${step + 1} of ${judgeSteps.length}`}><b>{step + 1}<small> / {judgeSteps.length}</small></b><Progress value={((step + 1) / judgeSteps.length) * 100} color="blue" /></div>
       </section>
       <section className="judgeTour" aria-labelledby="judge-tour-title">
-        <div><span>JUDGE TOUR</span><h2 id="judge-tour-title">See the strongest moments</h2></div>
-        <button type="button" onClick={() => runScenario(judgeScenarios[3])}><b>1</b><span>Run Diagnostic<small>Find the weakest skill</small></span></button>
-        <button type="button" onClick={() => runScenario(judgeScenarios[0])}><b>2</b><span>See Agent Analysis<small>Watch adaptation happen</small></span></button>
-        <button type="button" onClick={() => runScenario(judgeScenarios[1])}><b>3</b><span>View Adaptive Plan<small>See priorities change</small></span></button>
+        <div><span>60-SECOND JUDGE TOUR</span><h2 id="judge-tour-title">One real answer. Five visible agent actions.</h2></div>
+        <button type="button" onClick={() => setStep(0)}><b>1</b><span>See Weakness<small>Read the learner model</small></span></button>
+        <button type="button" onClick={() => setStep(1)}><b>2</b><span>Answer Question<small>Create real evidence</small></span></button>
+        <button type="button" onClick={() => result && setStep(4)} disabled={!result}><b>3</b><span>Inspect Decision<small>Verify every change</small></span></button>
         <button type="button" className="resetDemo" onClick={resetDemo}>Reset Demo</button>
-      </section>
-      <section className="scenarioPanel" aria-labelledby="scenario-title">
-        <div><span>ONE-CLICK SCENARIOS</span><h2 id="scenario-title">What should the coach do?</h2></div>
-        <div className="scenarioChips">{judgeScenarios.map((scenario) => <button type="button" key={scenario.label} onClick={() => runScenario(scenario)} disabled={Boolean(busy)}>{scenario.label}</button>)}</div>
       </section>
       <div className="agentActivity" role="status" aria-live="polite">
         <strong><i className={busy ? "working" : ""} />Agent Actions</strong>
-        <div>{judgeSteps.slice(0, 6).map((item, index) => <span key={item.label} className={index < step ? "done" : index === step ? "active" : ""}>{index < step ? "✓" : index + 1} {item.label}</span>)}</div>
+        <div>{judgeSteps.map((item, index) => <span key={item.label} className={index < step ? "done" : index === step ? "active" : ""}>{index < step ? "✓" : index + 1} {item.label}</span>)}</div>
         <p>{busy ?? `Completed: ${current.title}.`}</p>
       </div>
       <ol className="judgeRail" aria-label="Demo stages">
         {judgeSteps.map((item, index) => <li key={item.label} className={index < step ? "done" : index === step ? "active" : ""}><span>{index < step ? "✓" : index + 1}</span><small>{item.label}</small></li>)}
       </ol>
       <section className="judgeStage" aria-live="polite">
-        <div className="stageVisual"><span>{step < 4 ? "◎" : step < 6 ? "✎" : "↗"}</span><small>LIVE AGENT EVENT</small></div>
+        <div className="stageVisual"><span>{step < 2 ? "◎" : step < 4 ? "✎" : "↗"}</span><small>REAL AGENT STATE</small></div>
         <div><Pill>{current.label.toUpperCase()}</Pill><h2>{current.title}</h2><p>{current.detail}</p>
-          {step >= 4 && <dl className="changeGrid"><div><dt>Mastery</dt><dd>42% <span>→</span> 34%</dd></div><div><dt>Difficulty</dt><dd>Medium <span>→</span> Foundation</dd></div><div><dt>Pattern</dt><dd>Repeated sign error</dd></div><div><dt>Next action</dt><dd>Factor-pair remediation</dd></div></dl>}
-          {step >= 4 && <div className="answerInsight"><b>Why the answer missed</b><p>The response used the correct factor pair but reversed the signs. That matches Amara&apos;s recurring <strong>sign errors</strong> pattern.</p><small>Correct answer: (x − 3)(x − 4) · Next: factor-pair foundation practice</small></div>}
-          {!complete ? <button className="btn primary" onClick={advance} disabled={Boolean(busy)}>{busy ? busy : `Continue: ${judgeSteps[step + 1].label} →`}</button> : <div className="judgeFinish"><b>Agent loop complete</b><p>Weakness detected · mastery updated · plan rebuilt · practice adapted · mistake remembered · decision explained.</p><div><a className="btn primary" href="/dashboard?demo=1">See updated dashboard</a><a className="btn ghost" href="/agent?demo=1">Inspect decision log</a></div></div>}
+          {step === 0 && <dl className="changeGrid"><div><dt>Weakest Math skill</dt><dd>Quadratics · {student.mastery.Quadratics}%</dd></div><div><dt>Today&apos;s first task</dt><dd>{student.plan[0]?.skill}</dd></div><div><dt>Recurring pattern</dt><dd>Sign errors · {student.mistakes["Sign errors"] ?? 0}×</dd></div><div><dt>Selected difficulty</dt><dd>Medium</dd></div></dl>}
+          {step === 1 && <div className="judgeQuestion"><h3>{demoQuestion.prompt}</h3><p className="judgePrompt">Choose any answer. For the clearest adaptation path, choose A—the common distractor.</p>{demoQuestion.options.map((option,index)=><button type="button" className={choice===index?"selected":""} onClick={()=>setChoice(index)} key={option}><span>{String.fromCharCode(65+index)}</span>{option}</button>)}<button type="button" className="btn primary" disabled={choice===null||Boolean(busy)} onClick={submitJudgeAnswer}>{busy ?? "Submit answer and run agent →"}</button></div>}
+          {result && step >= 2 && <dl className="changeGrid"><div><dt>Mastery</dt><dd>{result.before}% <span>→</span> {result.after}%</dd></div><div><dt>Difficulty</dt><dd>Medium <span>→</span> {result.nextDifficulty}</dd></div><div><dt>Detected pattern</dt><dd>{result.pattern}</dd></div><div><dt>Study-plan action</dt><dd>{result.planChange}</dd></div></dl>}
+          {result && step >= 2 && <div className="answerInsight"><b>{result.correct ? "Why the answer worked" : "Why the answer missed"}</b><p>{demoQuestion.explanation}</p><small>Correct answer: {String.fromCharCode(65+demoQuestion.answer)} · {demoQuestion.options[demoQuestion.answer]}</small></div>}
+          {step !== 1 && !complete ? <button className="btn primary" onClick={advance} disabled={Boolean(busy)}>{`Continue: ${judgeSteps[step + 1].label} →`}</button> : complete ? <div className="judgeFinish"><b>Agent loop complete</b><p>Observed answer · updated mastery · remembered pattern · adapted difficulty · rebuilt plan · recorded evidence.</p><div><a className="btn primary" href="/dashboard?demo=1">See updated dashboard</a><a className="btn ghost" href="/agent?demo=1">Inspect decision log</a></div></div> : null}
         </div>
       </section>
       <section className="beforeAfter" aria-label="Adaptive outcome">
-        <div><span>BEFORE</span><b>1180</b><small>Initial demo estimate</small></div><i>→</i><div><span>AFTER THIS ATTEMPT</span><b>{student.mastery.Quadratics}%</b><small>Quadratics mastery</small></div><div><span>NEXT ACTION</span><b>Foundation</b><small>Factor pairs, then retry</small></div><p>Demo estimates are simulated from mastery signals and are not score guarantees.</p>
+        <div><span>BEFORE</span><b>{result?.before ?? 42}%</b><small>Quadratics mastery</small></div><i>→</i><div><span>AFTER THIS ATTEMPT</span><b>{result?.after ?? student.mastery.Quadratics}%</b><small>Live mastery</small></div><div><span>NEXT ACTION</span><b>{result?.nextDifficulty ?? "Pending"}</b><small>{result?.planChange ?? "Answer the selected question"}</small></div><p>All values above come from the same learner state used by Practice, Progress, Study Plan, Dashboard, and Agent Log.</p>
       </section>
     </Frame>
   );

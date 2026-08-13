@@ -1,80 +1,83 @@
-# AcePath AI
+# AcePath
 
-AcePath AI is a free, lightweight adaptive SAT tutor built for students who do not have access to private tutoring or expensive prep platforms. It turns every answer into a next action: a mastery update, an adaptive question, a mistake-memory entry, or a change to the weekly study plan.
+AcePath is an adaptive SAT study agent for students who cannot rely on a private tutor. Most free test-prep tools give every learner the same queue of questions; AcePath maintains a learner model, remembers error patterns, and changes what the student should do next after every answer.
 
-**Hackathon demo:** choose **Try Demo — instant access** for a freshly reset populated learner, or **Start a diagnostic** for the complete new-student flow. Zero-cost mode is the production default and does not require an AI key, account, or paid network call.
+- **Live demo:** https://acepath-sat-demo.vercel.app/judge?demo=1
+- **Submission video:** _Add Devpost video URL_
+- **No setup required:** no account, API key, or paid service is needed for the demo.
 
-## Why it matters
+## Try the judge demo
 
-SAT preparation is often a question of access. AcePath offers the core behavior of an attentive tutor—diagnosing gaps, remembering recurring mistakes, and adjusting the path—without a paywall. The interface is mobile-first, keyboard accessible, low-animation, and intentionally light on media for students using inexpensive devices or slow connections.
+1. Open the live demo and select **Answer Question**.
+2. Choose an option and submit it. Choosing **A** shows the clearest remediation path.
+3. Watch the same response update mastery, identify an error pattern, change difficulty, and rebuild the study plan.
+4. Continue to **Explain**, then open the updated dashboard and agent decision log.
+5. Use **Reset Demo** to restore the seeded learner at any time.
 
-## Demo
+### The agent in 30 seconds
 
-Choose **Explore demo student** on the landing page. Amara's seeded profile shows a 1210 readiness estimate, skill-level mastery, a populated weekly plan, improvement history, recurring mistakes, and a transparent log of agent decisions. Choose **Start your free diagnostic** to experience new-student onboarding.
+AcePath observes a scored answer, updates the relevant 0–100 mastery value, and records the associated mistake pattern. It then chooses the next difficulty from the new mastery and recent streak, prioritizes the learner's weakest skill, regenerates the study plan, and stores structured evidence for the decision. The UI displays the before and after values, so the adaptation is inspectable rather than narrated by a chatbot.
 
-Main routes:
+## Key features
 
-- `/` — mission and onboarding
-- `/dashboard` — readiness, daily tasks, and skill snapshot
-- `/diagnostic` — Math, Reading/Writing, or full diagnostic
-- `/practice` — interactive adaptive question loop and feedback
-- `/study-plan` — personalized weekly schedule
-- `/progress` — readiness and mastery analytics
-- `/mistakes` — remembered error patterns
-- `/agent` — transparent decision history
+- Short, medium, and full-length SAT-style test modes
+- Immediate answer feedback and authored option-by-option explanations
+- Adaptive practice selected by skill, mastery, difficulty, and prior exposure
+- Mistake memory with prerequisite remediation and scheduled review
+- Weekly plan generated from current mastery, not a fixed template
+- Math and Reading/Writing readiness estimates with transparent internal scaling
+- Persistent demo progress in the current browser
+- Visible decision history with trigger, evidence, and action
+- Desmos testing-calculator shortcut, answer elimination, notes, and focus tools
 
-## How the agent works
-
-Important decisions are deterministic and server-controllable. The engine in `lib/agent-core.mjs`:
-
-1. Updates each skill's mastery from 0–100, weighting question difficulty and repeated mistakes.
-2. Detects weak skills below a configurable threshold.
-3. Lowers difficulty after repeated misses and raises it after demonstrated mastery.
-4. Selects unseen questions near the right difficulty for the weakest relevant skill.
-5. Generates weekly tasks that prioritize the lowest mastery scores.
-6. Produces human-readable decision reasons for the demo and audit history.
-7. Schedules mistake reviews at expanding intervals and returns from prerequisite remediation to the original target skill.
-
-The optional provider abstraction in `lib/ai-provider.ts` supports Gemini through environment variables. It may improve explanation wording, but it does not control mastery, difficulty, or question selection. When no API key is configured, authored explanations keep the complete learning flow usable.
-
-Every adaptive decision can include structured evidence: mastery before and after, previous and next difficulty, trigger, and selected action.
+All seeded questions are original SAT-style items. AcePath does not reproduce College Board questions or mark schemes.
 
 ## Architecture
 
-- Next-compatible TypeScript/React routes with Tailwind CSS
-- Pure deterministic agent core, independently testable with Node's test runner
-- Original SAT-style seed questions (no copied official questions)
-- Supabase/Postgres schema with row-level security in `supabase/schema.sql`
-- Provider-neutral server-only AI abstraction
-- Vercel-ready environment configuration
+The final application is intentionally small:
 
-The data model covers profiles, diagnostics, practice sessions, questions, answers, skills, mastery, plans, tasks, mistake patterns, and agent decisions.
+- Next.js App Router, React, and TypeScript
+- deterministic learner-model and adaptation rules in `lib/agent-core.mjs`
+- original question content and authored explanations in the application data
+- browser-local demo persistence in `lib/client-state.ts`
+- an optional, server-only Gemini explanation route in `app/api/explain/route.ts`
 
-## Local setup
+The judge demo uses the same state and adaptation functions as Practice, Study Plan, Dashboard, Progress, Mistakes, and Agent Log. There is no separate animation-only demo path.
 
-Requirements: Node.js 22.13 or newer.
+## Agent logic
 
-```bash
-npm ci
-cp .env.example .env.local
-npm run dev
-```
+The deterministic core:
 
-Open the local URL shown by the development server. The demo works without external credentials.
+1. weights a correct or incorrect answer by question difficulty and repeated mistakes;
+2. clamps mastery between 0 and 100;
+3. identifies the lowest-mastery relevant skill;
+4. lowers difficulty after weak evidence or repeated misses and raises it after demonstrated mastery;
+5. selects an unseen question near the target difficulty;
+6. adds prerequisite work when a misconception blocks the target skill;
+7. regenerates study-plan priorities from the updated mastery map; and
+8. records structured before/after evidence for each decision.
 
-To enable persistence, create a Supabase project, run `supabase/schema.sql` in its SQL editor, and add the project URL and keys to `.env.local`. Never expose the service-role key to browser code.
+These rules are tested directly and work without a language model. Optional generated wording cannot change scores, question selection, or the learning path.
 
-## Environment variables
+## Accessibility
+
+Important actions use native buttons and links, visible keyboard focus, descriptive labels, live status regions, and touch targets sized for mobile use. The interface includes reduced-motion, high-contrast, and larger-text preferences. Layouts collapse at phone widths, and horizontal collections are either wrapped or intentionally scrollable.
+
+## Zero-cost mode
+
+`AI_PROVIDER=none` is the default. Mastery scoring, weak-skill detection, difficulty adaptation, question selection, mistake analysis, plans, progress, and decision logs all run locally with deterministic TypeScript/JavaScript. Static explanations are always available.
+
+Gemini is optional and server-only:
 
 | Variable | Purpose |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Public Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser-safe Supabase anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only privileged operations |
-| `AI_PROVIDER` | `none` or `gemini` |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | Gemini explanation provider |
+| `AI_PROVIDER` | `none` (default) or `gemini` |
+| `GEMINI_API_KEY` | Optional server-side Gemini key |
+| `GEMINI_MODEL` | Optional model override |
 
-## Quality checks
+No secret is referenced by client code.
+
+## Tests
 
 ```bash
 npm test
@@ -82,23 +85,27 @@ npm run lint
 npm run build
 ```
 
-Tests cover mastery calculation, difficulty adaptation, weak-skill ordering, study-plan generation, and adaptive selection.
+The suite covers mastery boundaries, adaptive difficulty, weak-skill selection, prerequisite behavior, question selection, spaced review, plan generation, decision evidence, content integrity, API validation, accessibility markers, and responsive safeguards.
 
-## Deploy to Vercel
+## Local setup
 
-Import the repository in Vercel, add the variables from `.env.example`, and deploy using the default build settings. Keep all AI and service-role secrets server-side. Supabase RLS policies restrict student-owned records to the authenticated user.
+Node.js 22.13 or newer is required.
 
-## Accessibility and performance
+```bash
+npm ci
+npm run dev
+```
 
-- Responsive from small phone screens upward
-- Semantic headings, labels, fieldsets, and keyboard-operable controls
-- High-contrast text and non-color-only feedback
-- Reduced-motion support
-- System typography and no required image downloads
-- Useful authored fallbacks when AI or network access is unavailable
-- Built-in larger-text, high-contrast, and Low Data Mode preferences
-- Spaced mistake review without background tracking or notifications
+Open `http://localhost:3000/judge?demo=1`. Copying `.env.example` is optional; the default requires no credentials.
 
-## Honest prototype boundary
+## Deployment
 
-The public demo uses device-local state so judges can run the complete flow without creating an account. The production Supabase schema and RLS policies are included, but hosted cross-device persistence requires configuring a Supabase project and replacing the demo state adapter with authenticated database reads and writes. AcePath labels its readiness measure as an internal preparation signal; it is not an official SAT score prediction.
+Import the repository into Vercel and use the default Next.js build settings. No environment variables are required for the core demo. If Gemini is enabled, add its key only through Vercel's server-side environment settings.
+
+## Prototype limitations
+
+- Demo state is device-local, so it does not sync across browsers or devices.
+- The question bank is substantial enough for the demonstration but is not an official College Board bank.
+- Readiness scores are internal preparation estimates, not official SAT predictions or admissions guarantees.
+- School and university range labels are informational examples, not admissions advice.
+- The full-length mode imitates useful digital-testing interactions but is not Bluebook and should not be treated as an official practice test.
