@@ -974,7 +974,7 @@ function Diagnostic({
           <Progress value={(index / qs.length) * 100} />
         </div>
       </div>
-      <QuestionView q={q} chosen={chosen} setChosen={setChosen} />
+      <QuestionView key={q.id} q={q} chosen={chosen} setChosen={setChosen} />
       <button
         className="btn primary diagnosticNext"
         disabled={chosen === null}
@@ -995,10 +995,21 @@ function QuestionView({
 }: {
   q: Question;
   chosen: number | null;
-  setChosen: (i: number) => void;
+  setChosen: (i: number | null) => void;
   disabled?: boolean;
   revealAnswer?: boolean;
 }) {
+  const [eliminated, setEliminated] = useState<Set<number>>(() => new Set());
+  const toggleEliminated = (index: number) => {
+    if (disabled) return;
+    setEliminated((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+    if (chosen === index) setChosen(null);
+  };
   return (
     <section className={`questionCard ${revealAnswer ? (chosen === q.answer ? "answerCorrect" : "answerWrong") : ""}`}>
       <div className="qMeta">
@@ -1010,19 +1021,23 @@ function QuestionView({
       <h2>{q.prompt}</h2>
       <fieldset disabled={disabled}>
         <legend className="srOnly">Choose one answer</legend>
-        {q.options.map((o, i) => (
-          <button
-            type="button"
-            aria-pressed={chosen === i}
-            key={o}
-            onClick={() => setChosen(i)}
-            className={`option ${chosen === i ? "selected" : ""} ${revealAnswer && i === q.answer ? "correct" : ""} ${revealAnswer && chosen === i && i !== q.answer ? "wrong" : ""}`}
-            aria-label={`${String.fromCharCode(65 + i)}. ${o}${revealAnswer && i === q.answer ? ", correct answer" : revealAnswer && chosen === i ? ", your incorrect answer" : ""}`}
-          >
-            <span>{String.fromCharCode(65 + i)}</span>
-            {o}
-          </button>
-        ))}
+        {q.options.map((o, i) => {
+          const isEliminated = eliminated.has(i);
+          return <div className={`optionRow ${isEliminated ? "eliminated" : ""}`} key={o}>
+            <button
+              type="button"
+              aria-pressed={chosen === i}
+              onClick={() => { if (!isEliminated) setChosen(i); }}
+              disabled={isEliminated && !revealAnswer}
+              className={`option ${chosen === i ? "selected" : ""} ${revealAnswer && i === q.answer ? "correct" : ""} ${revealAnswer && chosen === i && i !== q.answer ? "wrong" : ""}`}
+              aria-label={`${String.fromCharCode(65 + i)}. ${o}${isEliminated ? ", eliminated" : ""}${revealAnswer && i === q.answer ? ", correct answer" : revealAnswer && chosen === i ? ", your incorrect answer" : ""}`}
+            >
+              <span>{String.fromCharCode(65 + i)}</span>
+              <i className="optionText">{o}</i>
+            </button>
+            {!revealAnswer && <button type="button" className="eliminateButton" onClick={() => toggleEliminated(i)} aria-pressed={isEliminated} aria-label={`${isEliminated ? "Restore" : "Eliminate"} option ${String.fromCharCode(65 + i)}`} title={`${isEliminated ? "Restore" : "Cross out"} option ${String.fromCharCode(65 + i)}`}>{isEliminated ? "↶" : "ABC"}<span aria-hidden="true">／</span></button>}
+          </div>;
+        })}
       </fieldset>
     </section>
   );
@@ -1230,6 +1245,7 @@ function Practice({
       <div className={`practiceLayout ${mode === "test" && !testStarted ? "setupPending" : ""}`}>
         <div>
           <QuestionView
+            key={q.id}
             q={q}
             chosen={chosen}
             setChosen={setChosen}
