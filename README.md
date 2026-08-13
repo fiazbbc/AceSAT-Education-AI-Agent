@@ -99,13 +99,6 @@ Import the repository in Vercel, add the variables from `.env.example`, and depl
 - Built-in larger-text, high-contrast, and Low Data Mode preferences
 - Spaced mistake review without background tracking or notifications
 
-## Submission assets
-
-- [One-page Devpost write-up](docs/DEVPOST-WRITEUP.md)
-- [2:40 demo script and recording checklist](docs/DEMO-SCRIPT.md)
-- [Judge-readiness checklist](docs/JUDGE-CHECKLIST.md)
-- Social preview: `public/og.png`
-
 ## Honest prototype boundary
 
 The public demo uses device-local state so judges can run the complete flow without creating an account. The production Supabase schema and RLS policies are included, but hosted cross-device persistence requires configuring a Supabase project and replacing the demo state adapter with authenticated database reads and writes. AcePath labels its readiness measure as an internal preparation signal; it is not an official SAT score prediction.
