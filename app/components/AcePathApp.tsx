@@ -1443,7 +1443,7 @@ function JudgeDemo({ student, setStudent }: { student: Student; setStudent: Reac
         </div>
       </section>
       <section className="beforeAfter" aria-label="Adaptive outcome">
-        <div><span>BEFORE</span><b>{result?.before ?? 42}%</b><small>Quadratics mastery</small></div><i>→</i><div><span>AFTER THIS ATTEMPT</span><b>{result?.after ?? student.mastery.Quadratics}%</b><small>Live mastery</small></div><div><span>NEXT ACTION</span><b>{result?.nextDifficulty ?? "Pending"}</b><small>{result?.planChange ?? "Answer the selected question"}</small></div><p>All values above come from the same learner state used by Practice, Progress, Study Plan, Dashboard, and Agent Log.</p>
+        <div><span>BEFORE</span><b>{result?.before ?? student.mastery.Quadratics}%</b><small>Quadratics mastery</small></div><i>→</i><div><span>AFTER THIS ATTEMPT</span><b>{result ? `${result.after}%` : "Pending"}</b><small>{result ? (result.correct ? "Mastery improved" : "Evidence-adjusted mastery") : "Submit an answer to calculate"}</small></div><div><span>NEXT ACTION</span><b>{result?.nextDifficulty ?? "Pending"}</b><small>{result?.planChange ?? "Answer the selected question"}</small></div><p>All values above come from the same learner state used by Practice, Progress, Study Plan, Dashboard, and Agent Log.</p>
       </section>
     </Frame>
   );
